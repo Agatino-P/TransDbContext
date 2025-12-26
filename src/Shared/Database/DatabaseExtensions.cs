@@ -3,20 +3,39 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Shared.Infrastructure.Database.Repository;
 using Shared.Infrastructure.NServiceBus;
+using NServiceBus.Persistence;
+using NServiceBus.Persistence.Sql;
 
 namespace Shared.Infrastructure.Database;
 
 public static class DatabaseExtensions
 {
-    public static WebApplicationBuilder SharedAddDbContext(this WebApplicationBuilder webApplicationBuilder)
+    public static WebApplicationBuilder SharedAddTransactionalSessionAwarePocDbContext(this WebApplicationBuilder webApplicationBuilder)
     {
-        webApplicationBuilder.Services.AddDbContext<PocDbContext>((sp, options) =>
+        webApplicationBuilder.Services.AddScoped<PocDbContext>(serviceProvider =>
         {
+            var sqlStorageSession = serviceProvider.GetService<ISynchronizedStorageSession>() as ISqlStorageSession;
+
+            if (sqlStorageSession?.Connection != null)
+            {
+                var pocDbContext = new PocDbContext(
+                    new DbContextOptionsBuilder<PocDbContext>()
+                        .UseSqlServer(sqlStorageSession.Connection)
+                        .Options);
+
+                pocDbContext.Database.UseTransaction(sqlStorageSession.Transaction);
+
+                return pocDbContext;
+            }
+
             NServiceBusSettings settings = webApplicationBuilder.Configuration
                 .GetSection("NServiceBus")
                 .Get<NServiceBusSettings>()!;
-
-            options.UseSqlServer(settings.PersistenceConnectionString);
+            
+            return new PocDbContext(
+                new DbContextOptionsBuilder<PocDbContext>()
+                    .UseSqlServer(settings.PersistenceConnectionString)
+                    .Options);
         });
 
         return webApplicationBuilder;

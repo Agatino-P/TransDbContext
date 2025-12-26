@@ -33,9 +33,16 @@ public class TestController : ControllerBase
 
         await _pocLogEntryRepository.AddEntry(LogEntryType.RestCallReceived, firstApiSendCommandDto.ToString());
 
+        //While debugging, this allows for change of behavior
+        bool crashPlease = true; 
+        if (crashPlease)
+            throw new NotImplementedException();
+
         SecondApiCommand secondApiCommand = new(firstApiSendCommandDto.Text, firstApiSendCommandDto.Number);
         await _messageSession.Send(secondApiCommand);
 
+
+        
         string commandAsString = secondApiCommand.ToString();
         await _pocLogEntryRepository.AddEntry(LogEntryType.CommandSent, commandAsString);
 
